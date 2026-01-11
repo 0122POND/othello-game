@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>オセロ</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        h1 {
+            color: #fff;
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        .info {
+            display: flex;
+            gap: 40px;
+            margin-bottom: 20px;
+            color: #fff;
+            font-size: 1.2rem;
+        }
+        .score {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .stone-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .stone-icon.black {
+            background: radial-gradient(circle at 30% 30%, #555, #000);
+        }
+        .stone-icon.white {
+            background: radial-gradient(circle at 30% 30%, #fff, #ccc);
+        }
+        .turn {
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 2px;
+            background: #000;
+            padding: 2px;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .cell {
+            width: 50px;
+            height: 50px;
+            background: #2e8b57;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .cell:hover {
+            background: #3ca06a;
+        }
+        .cell.valid {
+            background: #4dc07d;
+        }
+        .stone {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+        .stone.black {
+            background: radial-gradient(circle at 30% 30%, #555, #000);
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.4);
+        }
+        .stone.white {
+            background: radial-gradient(circle at 30% 30%, #fff, #ccc);
+            box-shadow: 2px 2px 4px rgba(0,0,0,0.4);
+        }
+        .stone.flip {
+            animation: flip 0.3s ease-in-out;
+        }
+        @keyframes flip {
+            0% { transform: scale(1, 1); }
+            50% { transform: scale(0.1, 1); }
+            100% { transform: scale(1, 1); }
+        }
+        button {
+            margin-top: 20px;
+            padding: 12px 30px;
+            font-size: 1.1rem;
+            background: #e94560;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+        }
+        button:hover {
+            background: #ff6b6b;
+            transform: translateY(-2px);
+        }
+        .message {
+            margin-top: 15px;
+            color: #ffd700;
+            font-size: 1.3rem;
+            min-height: 30px;
+        }
+    </style>
+</head>
+<body>
+    <h1>オセロ</h1>
+    <div class="info">
+        <div class="score">
+            <span class="stone-icon black"></span>
+            <span id="black-score">2</span>
+        </div>
+        <div class="turn">
+            現在のターン: <span id="current-turn">黒</span>
+        </div>
+        <div class="score">
+            <span class="stone-icon white"></span>
+            <span id="white-score">2</span>
+        </div>
+    </div>
+    <div class="board" id="board"></div>
+    <div class="message" id="message"></div>
+    <button onclick="initGame()">リセット</button>
+
+    <script>
+        const EMPTY = 0;
+        const BLACK = 1;
+        const WHITE = 2;
+        const DIRECTIONS = [
+            [-1, -1], [-1, 0], [-1, 1],
+            [0, -1],           [0, 1],
+            [1, -1],  [1, 0],  [1, 1]
+        ];
+
+        let board = [];
+        let currentPlayer = BLACK;
+        let gameOver = false;
+
+        function initGame() {
+            board = Array(8).fill(null).map(() => Array(8).fill(EMPTY));
+            board[3][3] = WHITE;
+            board[3][4] = BLACK;
+            board[4][3] = BLACK;
+            board[4][4] = WHITE;
+            currentPlayer = BLACK;
+            gameOver = false;
+            document.getElementById('message').textContent = '';
+            renderBoard();
+            updateScore();
+        }
+
+        function renderBoard() {
+            const boardEl = document.getElementById('board');
+            boardEl.innerHTML = '';
+            const validMoves = getValidMoves(currentPlayer);
+
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+
+                    if (validMoves.some(m => m.row === row && m.col === col)) {
+                        cell.classList.add('valid');
+                    }
+
+                    if (board[row][col] !== EMPTY) {
+                        const stone = document.createElement('div');
+                        stone.className = 'stone ' + (board[row][col] === BLACK ? 'black' : 'white');
+                        cell.appendChild(stone);
+                    }
+
+                    cell.addEventListener('click', () => handleClick(row, col));
+                    boardEl.appendChild(cell);
+                }
+            }
+        }
+
+        function handleClick(row, col) {
+            if (gameOver) return;
+            if (!isValidMove(row, col, currentPlayer)) return;
+
+            makeMove(row, col, currentPlayer);
+            currentPlayer = currentPlayer === BLACK ? WHITE : BLACK;
+
+            const validMoves = getValidMoves(currentPlayer);
+            if (validMoves.length === 0) {
+                currentPlayer = currentPlayer === BLACK ? WHITE : BLACK;
+                const otherMoves = getValidMoves(currentPlayer);
+                if (otherMoves.length === 0) {
+                    endGame();
+                } else {
+                    document.getElementById('message').textContent =
+                        (currentPlayer === BLACK ? '白' : '黒') + 'はパスです';
+                }
+            } else {
+                document.getElementById('message').textContent = '';
+            }
+
+            renderBoard();
+            updateScore();
+            updateTurn();
+        }
+
+        function isValidMove(row, col, player) {
+            if (board[row][col] !== EMPTY) return false;
+            return getFlippableStones(row, col, player).length > 0;
+        }
+
+        function getFlippableStones(row, col, player) {
+            const opponent = player === BLACK ? WHITE : BLACK;
+            const flippable = [];
+
+            for (const [dr, dc] of DIRECTIONS) {
+                const line = [];
+                let r = row + dr;
+                let c = col + dc;
+
+                while (r >= 0 && r < 8 && c >= 0 && c < 8 && board[r][c] === opponent) {
+                    line.push({ row: r, col: c });
+                    r += dr;
+                    c += dc;
+                }
+
+                if (line.length > 0 && r >= 0 && r < 8 && c >= 0 && c < 8 && board[r][c] === player) {
+                    flippable.push(...line);
+                }
+            }
+
+            return flippable;
+        }
+
+        function getValidMoves(player) {
+            const moves = [];
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    if (isValidMove(row, col, player)) {
+                        moves.push({ row, col });
+                    }
+                }
+            }
+            return moves;
+        }
+
+        function makeMove(row, col, player) {
+            board[row][col] = player;
+            const flippable = getFlippableStones(row, col, player);
+            for (const pos of flippable) {
+                board[pos.row][pos.col] = player;
+            }
+        }
+
+        function updateScore() {
+            let black = 0, white = 0;
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    if (board[row][col] === BLACK) black++;
+                    if (board[row][col] === WHITE) white++;
+                }
+            }
+            document.getElementById('black-score').textContent = black;
+            document.getElementById('white-score').textContent = white;
+        }
+
+        function updateTurn() {
+            document.getElementById('current-turn').textContent =
+                currentPlayer === BLACK ? '黒' : '白';
+        }
+
+        function endGame() {
+            gameOver = true;
+            let black = 0, white = 0;
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    if (board[row][col] === BLACK) black++;
+                    if (board[row][col] === WHITE) white++;
+                }
+            }
+
+            let result;
+            if (black > white) {
+                result = '黒の勝ち！';
+            } else if (white > black) {
+                result = '白の勝ち！';
+            } else {
+                result = '引き分け！';
+            }
+            document.getElementById('message').textContent =
+                `ゲーム終了！ ${result} (黒: ${black}, 白: ${white})`;
+        }
+
+        initGame();
+    </script>
+</body>
+</html>
